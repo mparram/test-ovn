@@ -1,0 +1,30 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: sleep
+  namespace: test
+  labels:
+    app: sleep
+spec:
+  ports:
+    - protocol: TCP
+      port: 8096
+      targetPort: 8096
+  selector:
+    deployment: sleep
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: metrics
+  namespace: test
+  labels:
+    app: metrics
+spec:
+  ports:
+    - name: web
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: metrics
