@@ -7,7 +7,6 @@ import (
 	"net/http/httptrace"
 	"sync"
 	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -33,6 +32,10 @@ var (
 		Name: "http_request_status_code",
 		Help: "HTTP response status code of the last request",
 	})
+	totalErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_request_errors_total",
+		Help: "Total number of HTTP requests that took more than 1s",
+	})
 )
 
 func init() {
@@ -41,6 +44,7 @@ func init() {
 	prometheus.MustRegister(timeAvg)
 	prometheus.MustRegister(totalRequests)
 	prometheus.MustRegister(responseStatus)
+	prometheus.MustRegister(totalErrors)
 }
 
 func fetchGoogle(wg *sync.WaitGroup, times chan<- float64) {
@@ -60,12 +64,14 @@ func fetchGoogle(wg *sync.WaitGroup, times chan<- float64) {
 	elapsed := time.Since(start).Seconds()
 	if elapsed > 0.5 {
 		timestamp := time.Now().Format(time.RFC3339Nano)
-		
 		log.Printf("Slow request: %.2fms. Timestamp: %s. Source: %s\n", elapsed*1000, timestamp, localAddr)
+		if elapsed > 1 {
+			totalErrors.Inc()
+		}
 	}
 
 	if err != nil {
-		log.Printf("Error al realizar la solicitud: %v", err)
+		log.Printf("Error on request: %v", err)
 		responseStatus.Set(0)
 		return
 	}
@@ -81,7 +87,7 @@ func fetchGoogle(wg *sync.WaitGroup, times chan<- float64) {
 func main() {
 	nRequestsPerSecond := 200
 	ticker := time.NewTicker(time.Second / time.Duration(nRequestsPerSecond))
-	times := make(chan float64, nRequestsPerSecond*10) // Buffer para evitar bloqueos
+	times := make(chan float64, nRequestsPerSecond*10)
 
 	go func() {
 		for {
